@@ -142,7 +142,7 @@
                     title,
                     user_id,
                     category,
-                    profiles!flashcard_sets_user_id_fkey(username),
+                    profiles(username),
                     flashcards(count),
                     ratings:ratings(rating, user_id)
                 `)
@@ -150,11 +150,12 @@
 
             if (error) {
                 console.error('Error fetching sets:', error);
-                resultsInfo.textContent = 'Failed to load flashcard sets. Please check console for details.';
+                resultsInfo.textContent = 'Failed to load flashcard sets. Error: ' + error.message;
                 return;
             }
 
-            allSets = sets; // Store all fetched sets
+            console.log('Fetched sets:', sets);
+            allSets = sets || []; // Store all fetched sets
             performSearch(); // Initial display of all sets (or filtered if query/category is pre-filled)
         }
 
