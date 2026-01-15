@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flashcards - CramCraft</title>
+    <link rel="icon" type="image/png" href="images/icon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="stylesheet.css" />
+    <style media="print">
+        @page {
+            size: letter;
+            margin: 0.3in;
+            /* Default margin for all pages of flashcard_set.html */
+        }
+
+        @page :first {
+            margin-top: -0.3in;
+            /* Specific margin for the first page of flashcard_set.html */
+            margin-left: 0.3in;
+            margin-right: 0.3in;
+            margin-bottom: 0.3in;
+        }
+
+        /* Hide the print page title if it exists on printed pages, MathJax will handle its own scaling */
+        @media print {
+            .print-page-title {
+                display: none !important;
+            }
+
+            /* Adjust MathJax rendering for print if necessary - usually MathJax handles this well */
+            .MathJax_Display {
+                margin: 0 !important;
+            }
+        }
+    </style>
+
+    <script type="text/javascript" id="MathJax-script" async
+        src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+        </script>
+    <script>
+        // MathJax configuration
+        MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']] // Configure inline math delimiters
+            },
+            svg: {
+                fontCache: 'global'
+            }
+        };
+    </script>
+</head>
+
+<body class="flashcard-set-page">
+    <nav class="top-nav">
+        <div class="top-nav-inner">
+            <div class="nav-logo"><a href="index.html">CramCraft</a></div>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="create.html">Create</a></li>
+                <li><a href="user_dashboard.html">Dashboard</a></li>
+                <li><a href="search_page.html">Search</a></li>
+                <li><a href="about.html">About</a></li>
+            </ul>
+            <div class="user-status" style="display: none;">
+                <span id="welcome-msg">Welcome, DemoUser!</span>
+                <a href="#" id="logout-btn" class="logout-button">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <header class="set-header">
+            <h1>New Set</h1>
+        </header>
+
+        <div class="study-modes">
+            <button class="mode-button active" id="mode-flashcards"><i class="fa-solid fa-clone"></i>
+                Flashcards</button>
+            <button class="mode-button" id="mode-quiz"><i class="fa-solid fa-pen-to-square"></i> Quiz</button>
+            <button class="mode-button" id="mode-list"><i class="fa-solid fa-list-ul"></i> List</button>
+            <button class="mode-button" id="mode-print"><i class="fa-solid fa-print"></i> Print</button>
+            <button class="mode-button" id="mode-edit"><i class="fa-solid fa-edit"></i> Edit</button>
+        </div>
+
+        <div id="flashcard-view">
+            <div class="flashcard-viewer-container">
+                <button class="card-nav-button" id="prev-card"><i class="fas fa-arrow-left"></i></button>
+                <div class="flashcard" id="flashcard">
+                    <div class="flashcard-inner">
+                        <div class="flashcard-front" id="flashcard-front"></div>
+                        <div class="flashcard-back" id="flashcard-back"></div>
+                    </div>
+                </div>
+                <button class="card-nav-button" id="next-card"><i class="fas fa-arrow-right"></i></button>
+            </div>
+            <div class="card-navigation-wrapper">
+                <p class="card-progress" id="card-progress"></p>
+            </div>
+        </div>
+
+        <div id="quiz-view" class="hidden">
+            <div class="quiz-mode-container">
+                <h2 id="quiz-progress"></h2>
+                <p class="quiz-question" id="quiz-question"></p>
+                <div id="quiz-choices-container"></div>
+            </div>
+        </div>
+
+        <div id="list-view" class="hidden">
+            <div class="term-list-container" id="term-list-container"></div>
+        </div>
+
+        <div class="creator-info">
+            <img src="https://static.vecteezy.com/system/resources/previews/009/292/244/non_2x/default-avatar-icon-of-social-media-user-vector.jpg"
+                alt="Creator's profile picture">
+            <div class="details">
+                <span>Created by</span>
+                <strong id="creator-name"></strong>
+            </div>
+        </div>
+    </div>
+
+    <div id="print-view"></div>
+
+    <script type="module">
+        import { supabase } from './supabaseConfig.js';
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const flashcardFront = document.getElementById("flashcard-front");
+            const flashcardBack = document.getElementById("flashcard-back");
+            const prevBtn = document.getElementById("prev-card");
+            const nextBtn = document.getElementById("next-card");
+            const welcomeMsg = document.getElementById("welcome-msg");
+            const modePrintBtn = document.getElementById('mode-print');
+            const printViewContainer = document.getElementById('print-view');
+            const flashcard = document.getElementById('flashcard');
+
+            const cardProgress = document.getElementById('card-progress');
+            // Added elements for mode buttons and views
+            const modeFlashcardsBtn = document.getElementById('mode-flashcards');
+            const modeQuizBtn = document.getElementById('mode-quiz');
+            const modeListBtn = document.getElementById('mode-list');
+            // Added elements for flashcard, quiz, and list views
+            const flashcardView = document.getElementById('flashcard-view');
+            const quizView = document.getElementById('quiz-view');
+            const listView = document.getElementById('list-view');
+            // Added elements for quiz functionality
+            const quizProgress = document.getElementById('quiz-progress');
+            const quizQuestion = document.getElementById('quiz-question');
+            const quizChoicesContainer = document.getElementById('quiz-choices-container');
+            // Added termListContainer for list view functionality
+            const termListContainer = document.getElementById('term-list-container');
+            // Added modeEditBtn for future edit functionality
+            const modeEditBtn = document.getElementById('mode-edit');
+            // Initialize variables for flashcards and quiz
+            let flashcards = [];
+            let flashcardData = [];
+            let currentIndex = 0;
+            let showFront = true;
+            let currentQuizIndex = 0;
+            // Check if set_id is provided in the URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const setId = urlParams.get('set_id');
+            if (!setId) {
+                alert("No set ID provided.");
+                window.location.href = "user_dashboard.html";
+                return;
+            }
+
+            const setTitleElement = document.querySelector('.set-header h1');
+
+            try {
+                const { data: setData, error: setError } = await supabase
+                    .from('flashcard_sets')
+                    .select('title')
+                    .eq('id', setId)
+                    .single();
+
+                if (setError) {
+                    console.error('Error fetching set title:', setError.message);
+                    setTitleElement.textContent = 'Untitled Set';
+                } else {
+                    setTitleElement.textContent = setData.title || 'Untitled Set';
+                }
+            } catch (error) {
+                console.error('Unexpected error fetching set title:', error);
+                setTitleElement.textContent = 'Untitled Set';
+            }
+            // Fetch user session and profile information
+            const sessionResult = await supabase.auth.getSession();
+            const user = sessionResult.data.session?.user;
+            // If user is not logged in, redirect to login page
+            if (user) {
+                const { data: profile } = await supabase
+                    .from("profiles")
+                    .select("username")
+                    .eq("user_id", user.id)
+                    .single();
+                // Display welcome message with username or email
+                const username = profile?.username || user.email || "User";
+                welcomeMsg.textContent = `Welcome, ${username}!`;
+                document.querySelector(".user-status").style.display = "block";
+                document.getElementById('logout-btn').addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    await supabase.auth.signOut();
+                    window.location.href = 'login.html';
+                });
+            }
+            // Fetch the creator's name based on the set_id
+            const creatorNameElement = document.getElementById("creator-name");
+            // Fetch the creator's username from the profiles table
+            try {
+                const { data: setMeta, error: setMetaError } = await supabase
+                    .from('flashcard_sets')
+                    .select('user_id')
+                    .eq('id', setId)
+                    .single();
+                // If there's an error or no user_id, set creator name to "Unknown"
+                if (setMetaError || !setMeta?.user_id) {
+                    console.error("Error fetching set creator ID:", setMetaError?.message);
+                    creatorNameElement.textContent = "Unknown";
+                } else {
+                    const { data: profileData, error: profileError } = await supabase
+                        .from("profiles")
+                        .select("username")
+                        .eq("user_id", setMeta.user_id)
+                        .single();
+
+                    if (profileError || !profileData?.username) {
+                        console.error("Error fetching creator username:", profileError?.message);
+                        creatorNameElement.textContent = "Unknown";
+                    } else {
+                        creatorNameElement.textContent = profileData.username;
+                    }
+                }
+            } catch (e) {
+                console.error("Unexpected error getting creator name:", e);
+                creatorNameElement.textContent = "Unknown";
+            }
+            // Fetch flashcards for the given set_id
+            const { data, error } = await supabase
+                .from("flashcards")
+                .select("term, definition")
+                .eq("set_id", setId);
+            // If there's an error fetching flashcards, log it and display a message
+            if (error) {
+                console.error("Error fetching flashcards:", error.message);
+                flashcardFront.textContent = "Failed to load flashcards.";
+                return;
+            }
+            // If no flashcards are found, display a message
+            flashcards = (data || []).filter(card => card.term?.trim() && card.definition?.trim());
+            flashcardData = [...flashcards];
+
+
+            if (flashcardData.length === 0) {
+                document.querySelector('.main-container').innerHTML = '<p>No flashcards found for this set.</p>';
+                return;
+            }
+
+            if (flashcards.length === 0) {
+                flashcardFront.textContent = "No flashcards found.";
+                flashcardBack.textContent = "";
+                return;
+            }
+            // Function to dynamically adjust font size
+            function adjustFontSize(element) {
+                const parent = element.parentElement; // flashcard-front or flashcard-back
+                let fontSize = 48; // Start with a large font size
+                element.style.fontSize = `${fontSize}px`; // Apply initial font size
+                element.style.whiteSpace = 'normal'; // Allow text to wrap initially
+
+                // Reset overflow for accurate measurement
+                element.style.overflow = 'visible';
+
+                // Check if text overflows, and shrink if it does
+                // Loop until text fits or min font size is reached
+                while (
+                    (element.scrollHeight > parent.clientHeight || element.scrollWidth > parent.clientWidth) &&
+                    fontSize > 10
+                ) {
+                    fontSize -= 1; // Decrement by 1 for finer control
+                    element.style.fontSize = `${fontSize}px`;
+                }
+
+                // If text still overflows at min font size, hide overflow or allow scroll
+                if (fontSize <= 10 && (element.scrollHeight > parent.clientHeight || element.scrollWidth > parent.clientWidth)) {
+                    element.style.overflow = 'auto'; // Or 'hidden' if you prefer to cut it off
+                } else {
+                    element.style.overflow = 'visible'; // Reset if it fits
+                }
+            }
+
+            // Modified renderCard function to use adjustFontSize and reset flip state
+            // It now takes 'index' as a parameter to ensure it always renders the correct card.
+            function renderCard(index) {
+                const card = flashcards[index];
+                if (!card) {
+                    flashcardFront.textContent = "";
+                    flashcardBack.textContent = "";
+                    return;
+                }
+
+                // *** CRITICAL CHANGE: Ensure the card is showing the front when navigating to a new card ***
+                // This resolves the "skips every even numbered card" and "goes completely blank" issues.
+                flashcard.classList.remove('flipped'); // Remove 'flipped' class to show front
+
+                // Prepare content for MathJax rendering
+                let termContent = card.term;
+                let definitionContent = card.definition;
+
+                // Simple heuristic: if it contains '$' and not just a standalone number with '$' (e.g., "$5")
+                if (termContent.includes('$') && !/^\s*\$\d+(\.\d+)?\s*$/.test(termContent)) {
+                    termContent = termContent.replace(/\$(.*?)\$/g, '$$$$$1$$$$');
+                }
+                if (definitionContent.includes('$') && !/^\s*\$\d+(\.\d+)?\s*$/.test(definitionContent)) {
+                    definitionContent = definitionContent.replace(/\$(.*?)\$/g, '$$$$$1$$$$');
+                }
+
+                flashcardFront.innerHTML = termContent;
+                flashcardBack.innerHTML = definitionContent;
+
+                // Apply font size adjustment to both sides
+                adjustFontSize(flashcardFront);
+                adjustFontSize(flashcardBack);
+
+                // Trigger MathJax typesetting after new content is added
+                if (window.MathJax) {
+                    window.MathJax.typesetPromise([flashcardFront, flashcardBack]).catch((err) => console.error("MathJax typesetting failed for flashcard:", err));
+                }
+
+                document.getElementById("card-progress").textContent =
+                    `Card ${currentIndex + 1} of ${flashcards.length}`;
+            }
+
+            // Attach event listeners once
+            nextBtn.addEventListener("click", () => {
+                if (currentIndex < flashcards.length - 1) {
+                    currentIndex++;
+                    renderCard(currentIndex); // Pass currentIndex and let renderCard handle flip state
+                }
+            });
+
+            prevBtn.addEventListener("click", () => {
+                if (currentIndex > 0) {
+                    currentIndex--;
+                    renderCard(currentIndex); // Pass currentIndex and let renderCard handle flip state
+                }
+            });
+
+            // This is the correct and simplest way to toggle the class
+            document.getElementById("flashcard").addEventListener("click", () => {
+                flashcard.classList.toggle('flipped');
+            });
+
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+            // Fetch flashcard data with categories if available
+            function switchView(activeView) {
+                const views = { flashcard: flashcardView, quiz: quizView, list: listView };
+                const buttons = { flashcard: modeFlashcardsBtn, quiz: modeQuizBtn, list: modeListBtn };
+                for (const view in views) {
+                    views[view].classList.add('hidden');
+                    buttons[view].classList.remove('active');
+                }
+                views[activeView].classList.remove('hidden');
+                buttons[activeView].classList.add('active');
+
+                // Clear previously rendered MathJax to prevent duplicates on re-render
+                if (window.MathJax) {
+                    window.MathJax.startup.document.clear();
+                    window.MathJax.startup.document.updateDocument();
+                }
+
+                if (activeView === 'quiz') startQuiz();
+                if (activeView === 'list') renderListView();
+                if (activeView === 'flashcard') renderCard(currentIndex); // Re-render current card
+            }
+
+            // Render list view
+            function renderListView() {
+                termListContainer.innerHTML = '';
+                flashcardData.forEach(card => {
+                    const row = document.createElement('div');
+                    row.className = 'term-row';
+
+                    let termContent = card.term;
+                    let definitionContent = card.definition;
+
+                    if (termContent.includes('$') && !/^\s*\$\d+(\.\d+)?\s*$/.test(termContent)) {
+                        termContent = termContent.replace(/\$(.*?)\$/g, '$$$$$1$$$$');
+                    }
+                    if (definitionContent.includes('$') && !/^\s*\$\d+(\.\d+)?\s*$/.test(definitionContent)) {
+                        definitionContent = definitionContent.replace(/\$(.*?)\$/g, '$$$$$1$$$$');
+                    }
+
+                    row.innerHTML = `<div class="term">${termContent}</div><div class="definition">${definitionContent}</div>`;
+                    termListContainer.appendChild(row);
+                });
+                // Trigger MathJax typesetting for the list view
+                if (window.MathJax) {
+                    window.MathJax.typesetPromise([termListContainer]).catch((err) => console.error("MathJax typesetting failed for list view:", err));
+                }
+            }
+            // Quiz functionality
+            function startQuiz() {
+                currentQuizIndex = 0;
+                showQuizQuestion(currentQuizIndex);
+            }
+            // Show a quiz question based on the current index
+            function showQuizQuestion(index) {
+                const currentCard = flashcardData[index];
+
+                let questionText = `What is the definition of "${currentCard.term}"?`;
+                // If the term itself contains math, enclose it for proper rendering
+                if (currentCard.term.includes('$') && !/^\s*\$\d+(\.\d+)?\s*$/.test(currentCard.term)) {
+                    questionText = `What is the definition of ${currentCard.term.replace(/\$(.*?)\$/g, '$$$$$1$$$$')}?`;
+                }
+                
+                quizQuestion.innerHTML = questionText;
+                quizProgress.textContent = `Question ${index + 1} of ${flashcardData.length}`;
+                
+                const correctAnswer = currentCard.definition;
+                const incorrectAnswers = [];
+                while (incorrectAnswers.length < 3 && flashcardData.length > 3) {
+                    const randomIndex = Math.floor(Math.random() * flashcardData.length);
+                    const randomDefinition = flashcardData[randomIndex].definition;
+                    if (randomDefinition !== correctAnswer && !incorrectAnswers.includes(randomDefinition)) {
+                        incorrectAnswers.push(randomDefinition);
+                    }
+                }
+                // If not enough unique incorrect answers, fill with placeholders
+                const choices = shuffleArray([correctAnswer, ...incorrectAnswers]);
+                quizChoicesContainer.innerHTML = '';
+                choices.forEach(choice => {
+                    const button = document.createElement('button');
+                    button.className = 'choice-button';
+                    
+                    let choiceText = choice;
+                    if (choiceText.includes('$') && !/^\s*\$\d+(\.\d+)?\s*$/.test(choiceText)) {
+                        choiceText = choiceText.replace(/\$(.*?)\$/g, '$$$$$1$$$$');
+                    }
+                    button.innerHTML = choiceText; // Use innerHTML to allow MathJax to render
+                    
+                    button.addEventListener('click', handleChoiceClick);
+                    quizChoicesContainer.appendChild(button);
+                });
+
+                // Trigger MathJax typesetting for the quiz question and choices
+                if (window.MathJax) {
+                    window.MathJax.typesetPromise([quizQuestion, quizChoicesContainer]).catch((err) => console.error("MathJax typesetting failed for quiz:", err));
+                }
+            }
+
+            function handleChoiceClick(event) { // Handle choice button clicks
+                const selectedButton = event.target;
+                // For MathJax content, use innerText to get the rendered text for comparison
+                // Or better, compare with the original data which is not rendered yet
+                const chosenAnswer = selectedButton.textContent; // This gets the text content, not the raw LaTeX
+                const correctAnswer = flashcardData[currentQuizIndex].definition;
+                const buttons = quizChoicesContainer.querySelectorAll('.choice-button');
+                buttons.forEach(button => button.disabled = true);
+                
+                // Compare based on raw definition, not rendered text
+                if (chosenAnswer.trim() === correctAnswer.trim()) { // Trim to ignore leading/trailing spaces
+                    selectedButton.classList.add('correct');
+                } else {
+                    selectedButton.classList.add('incorrect');
+                    buttons.forEach(button => { 
+                        // Find the button whose raw content matches the correct answer
+                        // This might be tricky if raw vs. rendered text differs significantly.
+                        // A more robust solution might involve storing the correct answer's index.
+                        // For now, we'll try to find by text content after rendering for display purposes.
+                        // Ideally, we compare raw strings.
+                        if (button.textContent.trim() === correctAnswer.trim()) { 
+                            button.classList.add('correct'); 
+                        } 
+                    });
+                }
+                setTimeout(() => {
+                    if (currentQuizIndex < flashcardData.length - 1) {
+                        currentQuizIndex++; showQuizQuestion(currentQuizIndex);
+
+                    } else {
+                        quizQuestion.innerHTML = "Quiz Complete!"; // Use innerHTML for potential MathJax in completion msg
+                        quizProgress.textContent = "";
+                        quizChoicesContainer.innerHTML = '';
+                    }
+                }, 2500);
+            }
+            // Initial render
+            renderCard(currentIndex);
+
+            // --- UPDATED: Advanced Print Function ---
+            function prepareAndPrintAdvanced() {
+                const CARDS_PER_PRINT_PAGE = 10;
+                const dataToPrint = [...flashcardData];
+
+                // Pad the data with empty slots
+                while (dataToPrint.length % CARDS_PER_PRINT_PAGE !== 0) {
+                    dataToPrint.push({ term: `(Empty Slot)`, definition: `(Empty Slot)` });
+                }
+
+                const printTotalPages = (dataToPrint.length / CARDS_PER_PRINT_PAGE) * 2;
+                printViewContainer.innerHTML = '';
+
+                let printContentHtml = ''; // Build HTML string for printing
+
+                for (let i = 0; i < printTotalPages; i++) {
+                    const isTermPage = i % 2 === 0;
+                    const setIndex = Math.floor(i / 2);
+                    const startIdx = setIndex * CARDS_PER_PRINT_PAGE;
+
+                    printContentHtml += `<h3 class="print-page-title">Page ${i + 1} / ${printTotalPages} - ${isTermPage ? 'Terms' : 'Definitions'} (Set ${setIndex + 1})</h3>`;
+                    printContentHtml += `<div class="flashcard-grid">`;
+
+                    for (let j = 0; j < CARDS_PER_PRINT_PAGE; j++) {
+                        let indexToFetchDataFrom = startIdx + j;
+                        if (indexToFetchDataFrom >= dataToPrint.length) break;
+
+                        if (!isTermPage) {
+                            const numColumns = 2;
+                            const col = j % numColumns;
+                            if (col === 0) {
+                                if (indexToFetchDataFrom + 1 < dataToPrint.length && (j + 1) < CARDS_PER_PRINT_PAGE) {
+                                    indexToFetchDataFrom = startIdx + j + 1;
+                                }
+                            } else {
+                                if (indexToFetchDataFrom - 1 >= startIdx) {
+                                    indexToFetchDataFrom = startIdx + j - 1;
+                                }
+                            }
+                        }
+
+                        const itemToDisplay = dataToPrint[indexToFetchDataFrom];
+                        const card = document.createElement('div');
+                        card.className = 'card-item';
+
+                        const originalItemIndex = indexToFetchDataFrom + 1;
+                        const labelText = isTermPage ? `TERM ${originalItemIndex}` : `DEFINITION ${originalItemIndex}`;
+                        let contentText = isTermPage ? itemToDisplay.term : itemToDisplay.definition;
+
+                        // MODIFIED: Enclose content in MathJax delimiters for print preview as well
+                        if (contentText.includes('$') && !/^\s*\$\d+(\.\d+)?\s*$/.test(contentText)) {
+                            contentText = contentText.replace(/\$(.*?)\$/g, '$$$$$1$$$$');
+                        }
+                        printContentHtml += `<div class="card-item"><span class="label">${labelText}</span>${contentText.replace(/\n/g, '<br>')}</div>`;
+                    }
+                    printContentHtml += `</div>`; // Close flashcard-grid
+                }
+                printViewContainer.innerHTML = printContentHtml; // Set all content at once
+
+                // Before printing, typeset the math
+                if (window.MathJax) {
+                    window.MathJax.typesetPromise([printViewContainer]).then(() => {
+                        window.print();
+                        // Clear print view after printing
+                        printViewContainer.innerHTML = '';
+                    }).catch((err) => {
+                        console.error("MathJax typesetting for print failed:", err);
+                        // Fallback to plain print if MathJax fails
+                        window.print();
+                        printViewContainer.innerHTML = '';
+                    });
+                } else {
+                    window.print();
+                    printViewContainer.innerHTML = '';
+                }
+            }
+
+            modeFlashcardsBtn.addEventListener('click', () => switchView('flashcard'));
+            modeQuizBtn.addEventListener('click', () => switchView('quiz'));
+            modeListBtn.addEventListener('click', () => switchView('list'));
+            modePrintBtn.addEventListener('click', prepareAndPrintAdvanced); // Changed to call advanced function
+            modeEditBtn.addEventListener('click', () => {
+                if (setId) {
+                    window.location.href = `create.html?set_id=${setId}`;
+                }
+            });
+            // Removed the categoryFilter.addEventListener as the element no longer exists
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="images/icon.png">
+    <link rel="stylesheet" href="stylesheet.css" />
+    <title>Search Flashcards - CramCraft</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        /* Add some basic styling for the stars if not already in stylesheet.css */
+        .star {
+            cursor: pointer;
+            color: #ccc; /* Grey for unselected stars */
+            font-size: 1.5em;
+        }
+
+        .star.active {
+            color: gold; /* Gold for selected stars */
+        }
+
+        .rating-display {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+    </style>
+</head>
+
+<body class="search-page">
+    <nav class="top-nav">
+        <div class="top-nav-inner">
+            <div class="nav-logo"><a href="index.html">CramCraft</a></div>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="create.html">Create</a></li>
+                <li><a href="user_dashboard.html">Dashboard</a></li>
+                <li><a href="search_page.html">Search</a></li>
+                <li><a href="about.html">About</a></li>
+            </ul>
+            <div class="auth-buttons">
+                <div class="user-status" style="display: none;"></div>
+                <a href="login.html" class="btn signup">Login</a>
+                <a href="signup.html" class="btn signup">Signup</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="content-wrapper">
+        <h1>Search Flashcard Sets</h1>
+
+        <div class="search-controls-container">
+            <div class="search-bar-container">
+                <input type="text" placeholder="Search for sets by title..." id="search-input">
+                <button onclick="performSearch()">Search</button>
+            </div>
+            <div class="category-filter-container">
+                <p>Filter by Category:</p>
+                <div class="category-radio-group" id="category-radio-group">
+                    <label><input type="radio" name="category-filter" value="all" checked> All</label>
+                    <label><input type="radio" name="category-filter" value="math"> Math</label>
+                    <label><input type="radio" name="category-filter" value="science"> Science</label>
+                    <label><input type="radio" name="category-filter" value="history"> History</label>
+                    <label><input type="radio" name="category-filter" value="technology"> Technology</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="search-results-info">
+            <p id="results-count-info">Showing all public flashcard sets.</p>
+        </div>
+        <div class="sets-grid" id="search-results-grid">
+        </div>
+    </div>
+
+    <script type="module">
+        import { supabase } from './supabaseConfig.js';
+
+        // Update Auth buttons in top nav based on session on page load
+        async function updateAuthUI() {
+            const { data: { session } } = await supabase.auth.getSession();
+            const authButtonsDiv = document.querySelector('.auth-buttons');
+
+            if (session) {
+                const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('username')
+                    .eq('user_id', session.user.id)
+                    .single();
+
+                const username = (profile && !profileError) ? profile.username : session.user.email;
+                authButtonsDiv.innerHTML = `
+                        <div class="user-status">
+                            <span>Welcome, ${username}!</span>
+                            <a href="#" id="logout-btn" class="logout-button btn">Logout</a>
+                        </div>`;
+
+                document.getElementById('logout-btn').addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    await supabase.auth.signOut();
+                    window.location.href = 'login.html';
+                });
+
+            } else {
+                authButtonsDiv.innerHTML = `
+                        <a href="login.html" class="btn">Login</a>
+                        <a href="signup.html" class="btn">Signup</a>`;
+            }
+        }
+        updateAuthUI();
+
+        let allSets = []; // store all sets globally
+        let debounceTimer;
+        // Get references to all necessary DOM elements
+        const searchInput = document.getElementById('search-input');
+        const resultsGrid = document.getElementById('search-results-grid');
+        const resultsInfo = document.getElementById('results-count-info');
+        const categoryRadioGroup = document.getElementById('category-radio-group');
+
+
+        // Debounce search input to avoid too many requests
+        searchInput.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                performSearch();
+            }, 250);
+        });
+
+        // Event listener for category radio buttons
+        categoryRadioGroup.addEventListener('change', () => {
+            performSearch(); // Perform search immediately on category change
+        });
+
+
+        async function loadAllPublicSets() {
+            const { data: sets, error } = await supabase
+                .from('flashcard_sets')
+                .select(`
+                    id,
+                    title,
+                    user_id,
+                    category,
+                    profiles!flashcard_sets_user_id_fkey(username),
+                    flashcards(count),
+                    ratings:ratings(rating, user_id)
+                `)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('Error fetching sets:', error);
+                resultsInfo.textContent = 'Failed to load flashcard sets. Please check console for details.';
+                return;
+            }
+
+            allSets = sets; // Store all fetched sets
+            performSearch(); // Initial display of all sets (or filtered if query/category is pre-filled)
+        }
+
+
+        function performSearch() {
+            const query = searchInput.value.trim().toLowerCase();
+            const selectedCategory = document.querySelector('input[name="category-filter"]:checked').value.toLowerCase();
+
+            const filteredSets = allSets.filter(set => {
+                const matchesQuery = set.title.toLowerCase().includes(query) || (set.profiles?.username?.toLowerCase().includes(query));
+                const setCategory = set.category ? set.category.toLowerCase() : ''; // Get set category, handle null
+
+                let matchesCategory = true;
+                if (selectedCategory !== 'all') { // If a specific category is selected
+                    matchesCategory = setCategory.includes(selectedCategory); // Check if the set's category includes the selected category
+                }
+
+                return matchesQuery && matchesCategory;
+            });
+
+            displaySets(filteredSets);
+        }
+
+        async function upsertRating(set_id, rating, cardElement) {
+            const { data: { session } } = await supabase.auth.getSession();
+
+            if (!session) {
+                alert('You must be logged in to rate a set.');
+                window.location.href = 'login.html';
+                return;
+            }
+
+            const user_id = session.user.id;
+
+            // Check if rating exists (similar to user_dashboard.html)
+            const { data: existing, error: existingErr } = await supabase
+                .from('ratings')
+                .select('*')
+                .eq('user_id', user_id)
+                .eq('set_id', set_id)
+                .single();
+
+            let response;
+            if (existing) {
+                response = await supabase
+                    .from('ratings')
+                    .update({ rating: rating })
+                    .eq('id', existing.id); // Update by the rating's ID
+            } else {
+                response = await supabase
+                    .from('ratings')
+                    .insert([{ user_id: user_id, set_id: set_id, rating: rating }]);
+            }
+
+            if (response.error) {
+                console.error('Error saving rating:', response.error.message);
+                alert('Failed to submit rating. Please try again. Error: ' + response.error.message);
+                return;
+            } else {
+                console.log(`Rating ${rating} submitted for set ${set_id} by user ${user_id}`);
+                // Instead of reloading all sets, update the specific card's rating display
+                updateCardRatingDisplay(cardElement, set_id);
+            }
+        }
+
+        async function updateCardRatingDisplay(cardElement, set_id) {
+            // Fetch updated ratings for this specific set
+            const { data: updatedSet, error: fetchErr } = await supabase
+                .from('flashcard_sets')
+                .select(`
+                    ratings:ratings(rating)
+                `)
+                .eq('id', set_id)
+                .single();
+
+            if (fetchErr) {
+                console.error('Error fetching updated ratings:', fetchErr.message);
+                return;
+            }
+
+            const ratings = updatedSet.ratings || [];
+            const avgRating = ratings.length
+                ? ratings.reduce((acc, r) => acc + r.rating, 0) / ratings.length
+                : 0;
+            const roundedRating = Math.round(avgRating);
+
+            const starsContainer = cardElement.querySelector('.rating-display');
+            const avgRatingSpan = cardElement.querySelector('.avg-rating');
+            const ratingsCountSpan = cardElement.querySelector('.ratings-count');
+
+            if (starsContainer && avgRatingSpan && ratingsCountSpan) {
+                // Update stars
+                starsContainer.querySelectorAll('.star').forEach((star, index) => {
+                    star.classList.toggle('active', index < roundedRating);
+                });
+
+                // Update average rating text
+                avgRatingSpan.textContent = `(${avgRating.toFixed(1)} avg)`;
+
+                // Update ratings count
+                ratingsCountSpan.textContent = `(${ratings.length} ratings)`;
+            }
+        }
+
+
+        function displaySets(setsToDisplay) {
+            resultsGrid.innerHTML = ''; // Clear previous results
+            resultsInfo.textContent = `Showing ${setsToDisplay.length} sets.`;
+
+            if (setsToDisplay.length === 0) {
+                resultsInfo.textContent = `No sets found matching your criteria.`;
+                return;
+            }
+
+            setsToDisplay.forEach(set => {
+                const card = document.createElement('div');
+                card.classList.add('set-card');
+                // Removed card.style.cursor = 'pointer'; and card.onclick
+
+                const categoryDisplay = set.category ? `${set.category}` : '';
+                const termCount = set.flashcards[0] ? set.flashcards[0].count : 0;
+                const ratings = set.ratings || [];
+                const avgRating = ratings.length
+                    ? ratings.reduce((acc, r) => acc + r.rating, 0) / ratings.length
+                    : 0;
+                const roundedRating = Math.round(avgRating);
+
+                const starsHtmlArray = [];
+                for (let i = 1; i <= 5; i++) {
+                    // Added a data-set-id to each star for direct access
+                    starsHtmlArray.push(`<span class="star ${i <= roundedRating ? 'active' : ''}" data-rating="${i}">&#9733;</span>`);
+                }
+                const starsHtml = starsHtmlArray.join('');
+
+
+                card.innerHTML = `
+                <h3>${set.title}</h3>
+                <p>${categoryDisplay}</p>
+                <div class="rating-section">
+                    <p class="rating-display">${starsHtml}</p>
+                    <span class="avg-rating">(${avgRating.toFixed(1)} avg)</span>
+                    <span class="ratings-count">(${ratings.length} ratings)</span>
+                </div>
+                <p class="set-meta">
+                ${termCount} Terms &nbsp;&bull;&nbsp; By: <strong>${set.profiles?.username || 'Unknown User'}</strong>
+                </p>
+                `;
+
+                resultsGrid.appendChild(card);
+
+                // Add event listeners to the stars within this card
+                const stars = card.querySelectorAll('.rating-display .star');
+                stars.forEach(star => {
+                    star.addEventListener('click', async (event) => {
+                        event.stopPropagation(); // Prevent the card's click event from firing
+                        const rating = parseInt(star.dataset.rating);
+                        const setId = set.id; // Get setId from the outer set object
+                        await upsertRating(setId, rating, card); // Pass the card element
+                    });
+                });
+
+                // Add a separate click listener for the card to navigate to the set page
+                card.addEventListener('click', () => {
+                    window.location.href = `flashcard_set.html?set_id=${set.id}`;
+                });
+            });
+        }
+
+        // Initial load of sets when the page loads
+        document.addEventListener('DOMContentLoaded', loadAllPublicSets);
+    </script>
+</body>
+
+</html>
