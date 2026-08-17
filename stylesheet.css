@@ -734,9 +734,11 @@ body.confirm-email-page #about-section button:hover {
     display: flex;
     gap: 15px;
     margin-bottom: 12px;
+    align-items: flex-start;
 }
 
 .input-row input,
+.input-row textarea,
 .input-area textarea {
     flex: 1;
     padding: 12px 15px;
@@ -747,6 +749,18 @@ body.confirm-email-page #about-section button:hover {
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
+.input-row textarea.definition {
+    flex: 1.6;
+    width: auto;
+    min-width: 0;
+    min-height: 46px;
+    resize: vertical;
+    line-height: 1.5;
+    overflow-y: auto;
+    box-sizing: border-box;
+    margin-bottom: 0;
+}
+
 .input-area textarea {
     width: 100%;
     box-sizing: border-box;
@@ -755,6 +769,7 @@ body.confirm-email-page #about-section button:hover {
 }
 
 .input-row input:focus,
+.input-row textarea:focus,
 .input-area textarea:focus {
     border-color: var(--primary-color);
     box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, .25);
@@ -1999,7 +2014,8 @@ body.signup-page .message-box.error {
         gap: 10px;
     }
 
-    .input-row input {
+    .input-row input,
+    .input-row textarea {
         width: 100%;
     }
 

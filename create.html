@@ -201,7 +201,7 @@
                 rowCount++;
                 const newRow = document.createElement('div');
                 newRow.className = 'input-row';
-                newRow.innerHTML = `<input type="text" placeholder="Term ${rowCount}" class="term"><input type="text" placeholder="Definition ${rowCount}" class="definition"><button type="button" class="delete-row-btn">Delete</button>`;
+                newRow.innerHTML = `<input type="text" placeholder="Term ${rowCount}" class="term"><textarea placeholder="Definition ${rowCount}" class="definition" rows="2"></textarea><button type="button" class="delete-row-btn">Delete</button>`;
                 termDefInputs.appendChild(newRow);
             });
 
@@ -544,10 +544,12 @@
                             const newRow = document.createElement('div');
                             newRow.className = 'input-row';
                             newRow.innerHTML = `
-                                <input type="text" placeholder="Term ${rowCount}" class="term" value="${card.term || ''}">
-                                <input type="text" placeholder="Definition ${rowCount}" class="definition" value="${card.definition || ''}">
+                                <input type="text" placeholder="Term ${rowCount}" class="term">
+                                <textarea placeholder="Definition ${rowCount}" class="definition" rows="2"></textarea>
                                 <button type="button" class="delete-row-btn">Delete</button>
                             `;
+                            newRow.querySelector('.term').value = card.term || '';
+                            newRow.querySelector('.definition').value = card.definition || '';
                             termDefInputs.appendChild(newRow);
                         });
                         flashcardData = cards.filter(card => card.term?.trim() && card.definition?.trim()); // Set global flashcardData
@@ -758,7 +760,7 @@
                     <div id="term-def-inputs">
                         <div class="input-row">
                             <input type="text" placeholder="Term 1" class="term">
-                            <input type="text" placeholder="Definition 1" class="definition">
+                            <textarea placeholder="Definition 1" class="definition" rows="2"></textarea>
                             <button type="button" class="delete-row-btn">Delete</button>
                         </div>
                     </div>
