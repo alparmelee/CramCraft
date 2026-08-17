@@ -737,6 +737,43 @@ body.confirm-email-page #about-section button:hover {
     align-items: flex-start;
 }
 
+.drag-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    min-height: 46px;
+    flex-shrink: 0;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+    color: #868e96;
+}
+
+.drag-handle::before {
+    content: "⋮⋮";
+    font-size: 1.15rem;
+    letter-spacing: -0.18em;
+    line-height: 1;
+}
+
+.drag-handle:active,
+.input-row.dragging .drag-handle {
+    cursor: grabbing;
+}
+
+.input-row.dragging {
+    opacity: 0.55;
+    background: #f8f9fa;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+body.is-reordering-rows {
+    cursor: grabbing;
+    user-select: none;
+}
+
 .input-row input,
 .input-row textarea,
 .input-area textarea {
@@ -2012,6 +2049,14 @@ body.signup-page .message-box.error {
     .input-row {
         flex-direction: column;
         gap: 10px;
+        position: relative;
+        padding-left: 36px;
+    }
+
+    .input-row .drag-handle {
+        position: absolute;
+        left: 0;
+        top: 0;
     }
 
     .input-row input,
